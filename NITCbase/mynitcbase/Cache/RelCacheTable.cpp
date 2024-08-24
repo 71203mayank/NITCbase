@@ -38,3 +38,62 @@ void RelCacheTable::recordToRelCatEntry(union Attribute record[RELCAT_NO_ATTRS],
     relCatEntry->lastBlk = (int)record[RELCAT_LAST_BLOCK_INDEX].nVal;
     relCatEntry->numSlotsPerBlk = (int)record[RELCAT_NO_SLOTS_PER_BLOCK_INDEX].nVal;
 }
+
+/*
+    will return the searchIndex for the relation corresponding to `relId`
+    NOTE: This function expects the caller to allocate memory for `*searchIndex`
+*/
+int RelCacheTable::getSearchIndex(int relId, RecId* searchIndex){
+    //check if relId is within the bound
+    if(relId <0 || relId >= MAX_OPEN){
+        return E_OUTOFBOUND;
+    }
+
+    //check if relation at 'relId' is open or not. We can get to know if it has an entry in relation cache or not
+    if(relCache[relId] == nullptr){
+        return E_RELNOTOPEN;
+    }
+
+    // copy the searchIndex from Relation Cache entry to the searchIndex variable passed into parameter.
+    *searchIndex = relCache[relId]->searchIndex;
+    return SUCCESS;
+}
+
+// setSearchIndex
+/*
+    During a liner search operation if the record is found, we update searchIndex
+    with the rec-id ({block, slot}) uing this function.
+*/
+int RelCacheTable::setSearchIndex(int relId, RecId* searchIndex){
+    //check if relId is within the bound
+    if(relId < 0 || relId >= MAX_OPEN){
+        return E_OUTOFBOUND;
+    }
+
+    // check if relation at 'relId' is open or not
+    if(relCache[relId] == nullptr){
+        return E_RELNOTOPEN;
+    }
+
+    // update the searchIndex value in relCache for the relId to the searchIndex argument
+    relCache[relId]->searchIndex = *searchIndex;
+    return SUCCESS;
+}
+
+//resetSearchIndex
+int RelCacheTable::resetSearchIndex(int relId){
+    // check if relId is within the bound
+    if(relId < 0 || relId >= MAX_OPEN){
+        return E_OUTOFBOUND;
+    }
+
+    // check if relation at 'relId' is open or not
+    if(relCache[relId] == nullptr){
+        return E_RELNOTOPEN;
+    }
+
+    // reset
+    relCache[relId]->searchIndex.block = -1;
+    relCache[relId]->searchIndex.slot = -1;
+    return SUCCESS;
+}
