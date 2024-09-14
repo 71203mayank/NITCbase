@@ -5,8 +5,12 @@ struct BufferMetaInfo StaticBuffer::metainfo[BUFFER_CAPACITY];
 
 StaticBuffer::StaticBuffer(){
     // initialise all blocks as free
+    // Stage 6: set other parameters in the metainfo
     for(int bufferIndex = 0; bufferIndex<BUFFER_CAPACITY; bufferIndex++){
         metainfo[bufferIndex].free = true;
+        metainfo[bufferIndex].dirty = false;
+        metainfo[bufferIndex].blockNum = -1;
+        metainfo[bufferIndex].timeStamp = -1;
     }
 }
 
@@ -15,29 +19,69 @@ StaticBuffer::StaticBuffer(){
     not modifying the buffer. So, we will define an empty destructor for now, In
     subsequent stages, we will implement the write-back functionality here.
 */
-StaticBuffer::~StaticBuffer(){}
+StaticBuffer::~StaticBuffer(){
+    /*
+        Iterate through all the buffer block,
+        write back blocks with metainfo as free = false, dirty = true using Disk::writeBlock()
+    */
+    for(int bufferIndex = 0; bufferIndex < BUFFER_CAPACITY; bufferIndex++){
+        if(metainfo[bufferIndex].free == false && metainfo[bufferIndex].dirty == true){
+            Disk::writeBlock(StaticBuffer:: blocks[bufferIndex], metainfo[bufferIndex].blockNum);
+        }
+    }
+}
 
+/*
+    Assigns a buffer to the block and returns the buffer number.
+    If no free buffer block is found, the least recently used buffer block
+    is replaced.
+*/
+/*
+    The timeStamp is reset to 0 each time the buffer block is accessed and
+    incremented when other buffer blocks are accessed.
+*/
 int StaticBuffer::getFreeBuffer(int blockNum){
     if(blockNum < 0 || blockNum >= DISK_BLOCKS){
         return E_OUTOFBOUND;
     }
 
-    int allocatedBuffer;
+    int bufferNum = -1, bufferWithMaxTimeStamp = -1, maxTimeStamp = 0;
+    // increase the timeStamp in the metaInfo of all occupied buffers.
+    // if a free buffer is not avaliable
+    //      find the buffer with largest timeStamp
+    //      if it is DIRTY, write back to the disk
+    //      set bufferNum = index of this buffer
+    for(int bufferIndex = 0; bufferIndex < BUFFER_CAPACITY; bufferIndex++){
+        if(metainfo[bufferIndex].free == false){
+            metainfo[bufferIndex].timeStamp += 1;
 
-    // iterate through all the blocks in the StaticBuffer
-    // find the first free block in the buffer (check metainfo)
-    // assign allocatedBuffer = index of the free block
-    for(int i = 0; i < BUFFER_CAPACITY ; i++){
-        if(metainfo[i].free == true){
-            allocatedBuffer = i;
-            break;
+            if(maxTimeStamp < metainfo[bufferIndex].timeStamp){
+                bufferWithMaxTimeStamp = bufferIndex;
+                maxTimeStamp = metainfo[bufferIndex].timeStamp;
+            }
+        }
+
+        // if free buffer is avaliable, set bufferNum = bufferIndex
+        if(metainfo[bufferIndex].free == true && bufferNum == -1){
+            bufferNum = bufferIndex;
         }
     }
 
-    metainfo[allocatedBuffer].free = false;
-    metainfo[allocatedBuffer].blockNum = blockNum;
+    // free buffer not found
+    if(bufferNum == -1){
+        if(metainfo[bufferWithMaxTimeStamp].dirty == true){
+            Disk::writeBlock(StaticBuffer:: blocks[bufferWithMaxTimeStamp], metainfo[bufferWithMaxTimeStamp].blockNum);
+        }
+        bufferNum = bufferWithMaxTimeStamp;
+    }
 
-    return allocatedBuffer;
+    // update the metaInfo entry correspinding to bufferNum
+    metainfo[bufferNum].free = false;
+    metainfo[bufferNum].dirty = false;
+    metainfo[bufferNum].blockNum = blockNum;
+    metainfo[bufferNum].timeStamp = 0;
+
+    return bufferNum;
 }
 
 /*
@@ -58,5 +102,26 @@ int StaticBuffer::getBufferNum(int blockNum){
     }
 
     return E_BLOCKNOTINBUFFER;
+}
+
+/*
+    setDirtyBit(): sets the dirty bit of the buffer corresponding to the block
+*/
+int StaticBuffer::setDirtyBit(int blockNum){
+    // find the buffer index corresponding to the block using getBufferNum()
+    int bufferNum = StaticBuffer::getBufferNum(blockNum);
+
+    if(bufferNum == E_BLOCKNOTINBUFFER){
+        return E_BLOCKNOTINBUFFER;
+    }
+
+    if(bufferNum == E_OUTOFBOUND){
+        return E_OUTOFBOUND;
+    }
+
+    // else the buffer is found, set the dirty bit.
+    metainfo[bufferNum].dirty = true;
+    
+    return SUCCESS;
 }
 
