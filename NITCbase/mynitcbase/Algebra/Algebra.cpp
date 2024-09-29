@@ -102,6 +102,60 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
     return SUCCESS;
 }
 
+/*
+    Insert()
+    Method to insert the given record into the specific Relation.
+*/
+int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE]){
+    if(strcmp(relName,RELCAT_RELNAME) == 0 || strcmp(relName,ATTRCAT_RELNAME) == 0){
+        return E_NOTPERMITTED;
+    }
+
+    // get the relation's relId
+    int relId = OpenRelTable::getRelId(relName);
+
+    // if relation is not open, return erro
+    if(relId == E_RELNOTOPEN){
+        return E_RELNOTOPEN;
+    }
+
+    // get the relation catalog entry from relation cache using getRelCatEntry()
+    RelCatEntry relCatEntry;
+    RelCacheTable::getRelCatEntry(relId, &relCatEntry);
+
+    // if relCatEntry.numAttrs != num of attributes in relation, return error
+    if(relCatEntry.numAttrs != nAttrs){
+        return E_NATTRMISMATCH;
+    }
+
+    Attribute recordValues[nAttrs];
+    // converting 2D char array of record to Attribute array recordValues
+    for(int i = 0; i < nAttrs; i++){
+        // get the attrCatEntry for i-th attribute form the attrCacheTable
+        AttrCatEntry attrCatEntry;
+        AttrCacheTable::getAttrCatEntry(relId, i, &attrCatEntry);
+
+        int type = attrCatEntry.attrType;
+        if(type == NUMBER){
+            // if the char array record[i] can be converted into number
+            if(isNumber(record[i]) == true){
+                // convert it into number and store it into recordValues[i].nVal
+                recordValues[i].nVal = atof(record[i]);
+            }
+            else{
+                return E_ATTRTYPEMISMATCH;
+            }
+        }
+        else if(type == STRING){
+            strcpy(recordValues[i].sVal, record[i]);
+        }
+    }
+
+    // insert the record by calling BlockAccess::insert()
+    int retVal = BlockAccess::insert(relId, recordValues);
+    return retVal;
+}
+
 // will return if a string can be parsed as a floating point number
 bool isNumber(char *str){
     int len;

@@ -285,6 +285,17 @@ int OpenRelTable::closeRel(int relId){
         return E_RELNOTOPEN;
     }
 
+    if(RelCacheTable::relCache[relId]->dirty == true){
+        /*
+            Get the Relation Catalog entry from RelCacheTable::relCache,
+            then convert it to a record using RelCacheTable::relCatToRecord().
+        */
+        Attribute relCatRecord[RELCAT_NO_ATTRS];
+        RelCacheTable::relCatEntryToRecord(&RelCacheTable::relCache[relId]->relCatEntry, relCatRecord);
+        RecBuffer relCatBlock(RelCacheTable::relCache[relId]->recId.block);
+        relCatBlock.setRecord(relCatRecord,RelCacheTable::relCache[relId]->recId.slot);
+    }
+
     // free the memory allocated in the relation and attribute caches which was allocated in the openRel()
     free(RelCacheTable::relCache[relId]);
     AttrCacheEntry *entry, *temp;
