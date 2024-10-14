@@ -205,6 +205,41 @@ int BlockBuffer::getBlockNum(){
 }
 
 /*
+    releaseBlock(): 
+    1.  The block number to which this instance of block is associated is freed
+    from the buffer and the disk.
+    2.  The blockNum field to the object is invalidated
+*/
+void BlockBuffer::releaseBlock(){
+    // if blockNum is INVALID_BLOCKNUM, or already invalidated, do nothing, else...
+    if(this->blockNum != INVALID_BLOCKNUM){
+        /* 
+            get the buffer number of the buffer assigned to the block.
+        */
+        int bufferNum = StaticBuffer::getBufferNum(this->blockNum);
+
+        /*
+            if block is present in the buffer: 
+            1.  free the buffer by setting the free flag of
+                tableMetaInfo entry to true.
+            2.  Free the block disk by setting the data type of the entry
+                corresponding to the block number in blockAllocMap to UNUSED_BLK
+
+                (Don't worry about the slotMap for the block, because if the block is allocated
+                for the 1st time is BlockAccess::insert(), we set the header accrodingly and 
+                every slot in slotMap as UNOCCUPIED)
+        */ 
+        if(bufferNum != E_BLOCKNOTINBUFFER){
+            StaticBuffer::metainfo[bufferNum].free = true;
+            StaticBuffer::blockAllocMap[this->blockNum] = UNUSED_BLK;
+        }
+
+        // set the object's blockNum to INVALID_BLOCK
+        this->blockNum = INVALID_BLOCKNUM;
+    }
+}
+
+/*
     Used to get the record at slot 'slotNum' into the array 'rec'
     NOTE: this function expects the caller to allocate memory for 'rec'
 */
