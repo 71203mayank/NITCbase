@@ -76,7 +76,7 @@ int Schema::createRel(char relName[], int nAttrs, char attrs[][ATTR_SIZE], int a
     
     // perform linear search on relation catalog
     RelCacheTable::resetSearchIndex(RELCAT_RELID);
-    char  relCatAttrRelname[] = RELCAT_ATTR_RELNAME;
+    char  relCatAttrRelname[ATTR_SIZE] = RELCAT_ATTR_RELNAME;
     // char *relCatAttrRelname;
     // strcpy(relCatAttrRelname,RELCAT_ATTR_RELNAME);
     targetRelId = BlockAccess::linearSearch(RELCAT_RELID,relCatAttrRelname,relNameAsAttribute,EQ);
