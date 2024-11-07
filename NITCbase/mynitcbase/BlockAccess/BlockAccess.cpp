@@ -429,11 +429,29 @@ int BlockAccess::search(int relId, Attribute *record, char attrName[ATTR_SIZE], 
     RecId recId;
 
     /*
-        Search for the record id (recId) corresponding to the attribute with attribute
-        name attrName, with value attrVal and satisfying the condition op
-        using linearSearch()
+        Get the attribute catalog entry from the attribute cache corresponding
+        to the relation with id = relId and with attribute_name = attrName
     */
-    recId = BlockAccess::linearSearch(relId, attrName, attrVal, op);
+    AttrCatEntry attrCatEntry;
+    int ret = AttrCacheTable::getAttrCatEntry(relId, attrName, &attrCatEntry);
+    if(ret != SUCCESS){
+        return ret;     // Error handling
+    }
+
+    int rootBlock = attrCatEntry.rootBlock;
+    
+    if(rootBlock == -1){
+        /*
+            Search for the record id (recId) corresponding to the attribute with attribute
+            name attrName, with value attrVal and satisfying the condition op
+            using linearSearch()
+        */
+        recId = BlockAccess::linearSearch(relId, attrName, attrVal, op);
+    }
+    else{
+        recId = BPlusTree::bPlusSearch(relId, attrName, attrVal, op);
+    }
+
 
     // if record not found return E_NOTFOUND
     if(recId.block == -1 && recId.slot == -1){
@@ -448,6 +466,8 @@ int BlockAccess::search(int relId, Attribute *record, char attrName[ATTR_SIZE], 
 
     return SUCCESS;
 }
+
+
 
 /*
     deleteRelation()
