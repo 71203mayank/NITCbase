@@ -126,7 +126,7 @@ int BlockAccess::renameRelation(char oldRelName[ATTR_SIZE], char newRelName[ATTR
     strcpy(newRelationName.sVal, newRelName);
 
     // search the relation catalog for an entry with "RelName" = newRelationName
-    char *relCatAttrRelName;
+    char relCatAttrRelName[ATTR_SIZE];
     strcpy(relCatAttrRelName, RELCAT_ATTR_RELNAME);
     RecId recId = BlockAccess::linearSearch(RELCAT_RELID, relCatAttrRelName, newRelationName, EQ);
     // check if relation already exist
@@ -172,7 +172,7 @@ int BlockAccess::renameRelation(char oldRelName[ATTR_SIZE], char newRelName[ATTR
     RelCacheTable::resetSearchIndex(ATTRCAT_RELID);
             // Relation 'Student' can have 10 attributes, thus Attribute Catalog will have 10 entries correspoding to 'Student'
     int numOfAttrs = record[RELCAT_NO_ATTRIBUTES_INDEX].nVal;
-    char *attrCatAttrRelName;
+    char attrCatAttrRelName[ATTR_SIZE];
     strcpy(attrCatAttrRelName, ATTRCAT_ATTR_RELNAME);
     for(int i = 0; i < numOfAttrs; i++){
         RecId rec_id = BlockAccess::linearSearch(ATTRCAT_RELID, attrCatAttrRelName, oldRelationName, EQ);
@@ -200,7 +200,7 @@ int BlockAccess::renameAttribute(char relName[ATTR_SIZE], char oldName[ATTR_SIZE
     strcpy(relNameAttr.sVal, relName);
     
     // Search for the relation with name relName in the Relation Catalog using linearSearch()
-    char *relCatAttrRelName;
+    char relCatAttrRelName[ATTR_SIZE];
     strcpy(relCatAttrRelName, RELCAT_ATTR_RELNAME);
     RecId recId = BlockAccess::linearSearch(RELCAT_RELID,relCatAttrRelName,relNameAttr, EQ);
 
@@ -220,7 +220,7 @@ int BlockAccess::renameAttribute(char relName[ATTR_SIZE], char oldName[ATTR_SIZE
         1   Iterating over all the entries in the attribute catalog to find relation with relname = relName (paramter)
         2.  If found then the check if attrname == oldAttrname and take action accordingly.
     */
-    char *attrCatAttrRelName;
+    char attrCatAttrRelName[ATTR_SIZE];
     strcpy(attrCatAttrRelName, ATTRCAT_ATTR_RELNAME);
     while(true){
         // linearSearch
@@ -414,8 +414,29 @@ int BlockAccess::insert(int relId, Attribute *record){
     relCatEntry.numRecs += 1;
     RelCacheTable::setRelCatEntry(relId, &relCatEntry);
 
-    return SUCCESS;
-    
+    /* B+ Tree Insertion*/
+    int flag = SUCCESS;
+
+    // iterate over all the attributes of the relation
+    for(int i = 0; i < relCatEntry.numAttrs; i++){
+
+        // get the attribute catalog for the ith atribute
+        AttrCatEntry attrCatEntry;
+        AttrCacheTable::getAttrCatEntry(relId, i, &attrCatEntry);
+
+        // check if index for this attribute is created or not [check rootBlock]
+        if(attrCatEntry.rootBlock != -1){
+            // then insert into the B+ tree
+            int retVal = BPlusTree::bPlusInsert(relId, attrCatEntry.attrName, record[i], rec_id);
+
+            if(retVal == E_DISKFULL){
+                flag = E_INDEX_BLOCKS_RELEASED;
+            }
+        }
+
+    }
+
+    return flag;
 }
 
 
@@ -484,7 +505,7 @@ int BlockAccess::deleteRelation(char relName[ATTR_SIZE]){
     Attribute relNameAttr;
     strcpy(relNameAttr.sVal, relName);
 
-    char relCatAttrRelname[]=RELCAT_ATTR_RELNAME;
+    char relCatAttrRelname[ATTR_SIZE]=RELCAT_ATTR_RELNAME;
 
     // linearSearch on the relation catalog for RelName = relName
     RecId recId = BlockAccess::linearSearch(RELCAT_RELID, relCatAttrRelname, relNameAttr,EQ);
@@ -542,7 +563,7 @@ int BlockAccess::deleteRelation(char relName[ATTR_SIZE]){
         recBuffer.getRecord(record, attrCatRecId.slot);
         
         // declare the rootBlock which will be used to store the root block field from the attribute catalog record.
-        // int rootBlock = /* get root block from the record */
+        int rootBlock =  record[ATTRCAT_ROOT_BLOCK_INDEX].nVal;  /* get root block from the record */
 
         // update the SlotMap for the block by setting the slot as SLOT_UNOCCUPIED
         unsigned char slotMap[head.numSlots];
@@ -602,6 +623,10 @@ int BlockAccess::deleteRelation(char relName[ATTR_SIZE]){
         }
 
         // next part is for later stages.
+        /* For deleting B+ Trees */
+        if(rootBlock != -1){
+            BPlusTree::bPlusDestroy(rootBlock);
+        }
           
     }
 
